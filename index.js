@@ -20,10 +20,8 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             database: config.dbname || config.name || config.database || 'mybb'
         };
 
-        Exporter.log(_config);
-
         Exporter.config(_config);
-        Exporter.config('prefix', config.prefix || config.tablePrefix || 'mybb_');
+        Exporter.config('prefix', config.prefix || config.tablePrefix || '' /* phpbb_ ? */ );
 
         Exporter.connection = mysql.createConnection(_config);
         Exporter.connection.connect();
@@ -32,7 +30,9 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
     };
 
     Exporter.getUsers = function(callback) {
-        Exporter.log('getUsers');
+        return Exporter.getPaginatedUsers(0, -1, callback);
+    };
+    Exporter.getPaginatedUsers = function(start, limit, callback) {
         callback = !_.isFunction(callback) ? noop : callback;
 
         var err;
@@ -58,7 +58,9 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'users.birthday as _birthday '
 
             + 'FROM ' + prefix + 'users '
-            + 'WHERE ' + prefix + 'users.uid = ' + prefix + 'users.uid ';
+            + 'WHERE ' + prefix + 'users.uid = ' + prefix + 'users.uid '
+            + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
+
 
         if (!Exporter.connection) {
             err = {error: 'MySQL connection is not setup. Run setup(config) first'};
@@ -76,42 +78,31 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
                 //normalize here
                 var map = {};
                 rows.forEach(function(row) {
-                    if (row._username && row._email) {
+                    // nbb forces signatures to be less than 150 chars
+                    // keeping it HTML see https://github.com/akhoury/nodebb-plugin-import#markdown-note
+                    row._signature = Exporter.truncateStr(row._signature || '', 150);
 
-                        // nbb forces signatures to be less than 150 chars
-                        // keeping it HTML see https://github.com/akhoury/nodebb-plugin-import#markdown-note
-                        row._signature = Exporter.truncateStr(row._signature || '', 150);
+                    // from unix timestamp (s) to JS timestamp (ms)
+                    row._joindate = ((row._joindate || 0) * 1000) || startms;
 
-                        // from unix timestamp (s) to JS timestamp (ms)
-                        row._joindate = ((row._joindate || 0) * 1000) || startms;
+                    // lower case the email for consistency
+                    row._email = (row._email || '').toLowerCase();
 
-                        // lower case the email for consistency
-                        row._email = row._email.toLowerCase();
+                    // I don't know about you about I noticed a lot my users have incomplete urls, urls like: http://
+                    row._picture = Exporter.validateUrl(row._picture);
+                    row._website = Exporter.validateUrl(row._website);
 
-                        // I don't know about you about I noticed a lot my users have incomplete urls, urls like: http://
-                        row._picture = Exporter.validateUrl(row._picture);
-                        row._website = Exporter.validateUrl(row._website);
-
-                        map[row._uid] = row;
-                    } else {
-                        var requiredValues = [row._username, row._email];
-                        var requiredKeys = ['_username','_email'];
-                        var falsyIndex = Exporter.whichIsFalsy(requiredValues);
-
-                        Exporter.warn('Skipping user._uid: ' + row._uid + ' because ' + requiredKeys[falsyIndex] + ' is falsy. Value: ' + requiredValues[falsyIndex]);
-
-                    }
+                    map[row._uid] = row;
                 });
-
-                // keep a copy of the users in memory here
-                Exporter._users = map;
 
                 callback(null, map);
             });
     };
 
     Exporter.getCategories = function(callback) {
-        Exporter.log('getCategories');
+        return Exporter.getPaginatedCategories(0, -1, callback);    
+    };
+    Exporter.getPaginatedCategories = function(start, limit, callback) {
         callback = !_.isFunction(callback) ? noop : callback;
 
         var err;
@@ -122,7 +113,8 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'forums.name as _name, '
             + prefix + 'forums.description as _description '
             + 'FROM ' + prefix + 'forums '
-
+            +  (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
+            
         if (!Exporter.connection) {
             err = {error: 'MySQL connection is not setup. Run setup(config) first'};
             Exporter.error(err.error);
@@ -139,25 +131,21 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
                 //normalize here
                 var map = {};
                 rows.forEach(function(row) {
-                    if (row._name) {
-                        row._description = row._description || 'No decsciption available';
-                        row._timestamp = ((row._timestamp || 0) * 1000) || startms;
+                    row._name = row._name || 'Untitled Category';
+                    row._description = row._description || 'No decsciption available';
+                    row._timestamp = ((row._timestamp || 0) * 1000) || startms;
 
-                        map[row._cid] = row;
-                    } else {
-                        Exporter.warn('Skipping category._cid:' + row._cid + ' because category._name=' + row._name + ' is invalid');
-                    }
+                    map[row._cid] = row;
                 });
-
-                // keep a copy in memory
-                Exporter._categories = map;
 
                 callback(null, map);
             });
     };
 
     Exporter.getTopics = function(callback) {
-        Exporter.log('getTopics');
+        return Exporter.getPaginatedTopics(0, -1, callback);
+    };
+    Exporter.getPaginatedTopics = function(start, limit, callback) {
         callback = !_.isFunction(callback) ? noop : callback;
 
         var err;
@@ -193,7 +181,9 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 
             + 'FROM ' + prefix + 'threads, ' + prefix + 'posts '
             // see
-            + 'WHERE ' + prefix + 'threads.firstpost=' + prefix + 'posts.pid ';
+            + 'WHERE ' + prefix + 'threads.firstpost=' + prefix + 'posts.pid '
+            + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
+
 
         if (!Exporter.connection) {
             err = {error: 'MySQL connection is not setup. Run setup(config) first'};
@@ -210,39 +200,36 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 
                 //normalize here
                 var map = {};
-                var msg = 'You must run getCategories() before you can getTopics()';
-
-                if (!Exporter._categories) {
-                    err = {error: 'Categories are not in memory. ' + msg};
-                    Exporter.error(err.error);
-                    return callback(err);
-                }
-
                 rows.forEach(function(row) {
-                    if (Exporter._categories[row._cid]) {
+                    row._title = row._title ? row._title[0].toUpperCase() + row._title.substr(1) : 'Untitled';
+                    row._timestamp = ((row._timestamp || 0) * 1000) || startms;
 
-                        row._title = row._title ? row._title[0].toUpperCase() + row._title.substr(1) : 'Untitled';
-                        row._timestamp = ((row._timestamp || 0) * 1000) || startms;
-
-                        map[row._tid] = row;
-                    } else {
-                        var requiredValues = [Exporter._categories[row._cid]];
-                        var requiredKeys = ['category'];
-                        var falsyIndex = Exporter.whichIsFalsy(requiredValues);
-
-                        Exporter.warn('Skipping topic._tid: ' + row._tid + ' because ' + requiredKeys[falsyIndex] + ' is falsy. Value: ' + requiredValues[falsyIndex]);
-                    }
+                    map[row._tid] = row;
                 });
-
-                // keep a copy in memory
-                Exporter._topics = map;
 
                 callback(null, map);
             });
     };
 
+	var getTopicsMainPids = function(callback) {
+		if (Exporter._topicsMainPids) {
+			return callback(null, Exporter._topicsMainPids);
+		}
+		Exporter.getPaginatedTopics(0, -1, function(err, topicsMap) {
+			if (err) return callback(err);
+
+			Exporter._topicsMainPids = {};
+			Object.keys(topicsMap).forEach(function(_tid) {
+				var topic = topicsMap[_tid];
+				Exporter._topicsMainPids[topic.topic_first_post_id] = topic._tid;
+			});
+			callback(null, Exporter._topicsMainPids);
+		});
+	};
     Exporter.getPosts = function(callback) {
-        Exporter.log('getPosts');
+        return Exporter.getPaginatedPosts(0, -1, callback);
+    };
+    Exporter.getPaginatedPosts = function(start, limit, callback) {
         callback = !_.isFunction(callback) ? noop : callback;
 
         var err;
@@ -269,7 +256,8 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             // see https://github.com/akhoury/nodebb-plugin-import#important-note-on-topics-and-posts
 
             
-            + 'WHERE ' + prefix + 'posts.tid > 0 AND ' + prefix + 'posts.pid NOT IN (SELECT firstpost FROM ' + prefix + 'threads) ';
+            + 'WHERE ' + prefix + 'posts.tid > 0 AND ' + prefix + 'posts.pid NOT IN (SELECT firstpost FROM ' + prefix + 'threads) '
+            + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
         if (!Exporter.connection) {
             err = {error: 'MySQL connection is not setup. Run setup(config) first'};
@@ -277,38 +265,28 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             return callback(err);
         }
 
-        Exporter.connection.query(query,
-            function(err, rows) {
-                if (err) {
-                    Exporter.error(err);
-                    return callback(err);
-                }
+		Exporter.connection.query(query,
+			function (err, rows) {
+				if (err) {
+					Exporter.error(err);
+					return callback(err);
+				}
+				getTopicsMainPids(function(err, mpids) {
+					//normalize here
+					var map = {};
+					rows.forEach(function (row) {
+						// make it's not a topic
+						if (! mpids[row._pid]) {
+							row._content = row._content || '';
+							row._timestamp = ((row._timestamp || 0) * 1000) || startms;
+							map[row._pid] = row;
+						}
+					});
 
-                //normalize here
-                var map = {};
-                var msg = 'You must run getTopics() before you can getPosts()';
+					callback(null, map);
+				});
+			});
 
-                if (!Exporter._topics) {
-                    err = {error: 'Topics are not in memory. ' + msg};
-                    Exporter.error(err.error);
-                    return callback(err);
-                }
-
-                rows.forEach(function(row) {
-                    if (Exporter._topics[row._tid] && row._content) {
-                        row._timestamp = ((row._timestamp || 0) * 1000) || startms;
-                        map[row._pid] = row;
-                    } else {
-                        var requiredValues = [Exporter._topics[row._tid], row._content];
-                        var requiredKeys = ['topic', 'content'];
-                        var falsyIndex = Exporter.whichIsFalsy(requiredValues);
-
-                        Exporter.warn('Skipping post._pid: ' + row._pid + ' because ' + requiredKeys[falsyIndex] + ' is falsy. Value: ' + requiredValues[falsyIndex]);
-                    }
-                });
-
-                callback(null, map);
-            });
     };
 
     Exporter.teardown = function(callback) {
@@ -335,6 +313,29 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             },
             function(next) {
                 Exporter.getPosts(next);
+            },
+            function(next) {
+                Exporter.teardown(next);
+            }
+        ], callback);
+    };
+    
+    Exporter.paginatedTestrun = function(config, callback) {
+        async.series([
+            function(next) {
+                Exporter.setup(config, next);
+            },
+            function(next) {
+                Exporter.getPaginatedUsers(0, 1000, next);
+            },
+            function(next) {
+                Exporter.getPaginatedCategories(0, 1000, next);
+            },
+            function(next) {
+                Exporter.getPaginatedTopics(0, 1000, next);
+            },
+            function(next) {
+                Exporter.getPaginatedPosts(1001, 2000, next);
             },
             function(next) {
                 Exporter.teardown(next);
