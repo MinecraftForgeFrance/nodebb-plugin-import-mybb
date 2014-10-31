@@ -27,7 +27,7 @@
     "url": "https://github.com/asciicat/nodebb-plugin-import-mybb/issues"
   },
   "dependencies": {
-    "underscore": "~1.6.0",
+    "underscore": "~1.7.0",
     "fs-extra": "~0.11.0",
     "async": "~0.9.0",
     "marked": "~0.3.2",

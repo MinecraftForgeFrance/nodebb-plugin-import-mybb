@@ -1,7 +1,7 @@
 nodebb-plugin-import-mybb
 ==========================
 
-A MyBB to NodeBB exporter based on nodebb-plugin-import-phpbb by psycobunny based on nodebb-plugin-import-ubb by Aziz Khoury
+A MyBB to NodeBB exporter based on nodebb-plugin-import-ubb by Aziz Khoury
 
 Use this to import data into NodeBB using [nodebb-plugin-import](https://github.com/akhoury/nodebb-plugin-import).
 
