@@ -48,7 +48,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'users.email as _email '
             //+ prefix + 'banlist.ban_id as _banned '
             + prefix + 'users.signature as _signature, '
-            + prefix + 'users.website as _website, '
+            //+ prefix + 'users.website as _website, '
             //+ prefix + 'USER_PROFILE.USER_OCCUPATION as _occupation, '
             //+ prefix + 'USER_PROFILE.USER_LOCATION as _location, '
             + prefix + 'users.avatar as _picture, '
