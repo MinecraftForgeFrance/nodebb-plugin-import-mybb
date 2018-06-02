@@ -40,24 +40,28 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
         var startms = +new Date();
         var query = 'SELECT '
             + prefix + 'users.uid as _uid, '
+            + prefix + 'users.password as _password'
             + prefix + 'users.username as _username, '
             + prefix + 'users.username as _alternativeUsername, '
             + prefix + 'users.email as _registrationEmail, '
             //+ prefix + 'users.user_rank as _level, '
             + prefix + 'users.regdate as _joindate, '
+            + prefix + 'users.lastpost as _lastposttime, '
+            + prefix + 'users.lastvisit as _lastonline, ' 
             + prefix + 'users.email as _email '
             //+ prefix + 'banlist.ban_id as _banned '
             + prefix + 'users.signature as _signature, '
-            //+ prefix + 'users.website as _website, '
-            //+ prefix + 'USER_PROFILE.USER_OCCUPATION as _occupation, '
-            //+ prefix + 'USER_PROFILE.USER_LOCATION as _location, '
+            + prefix + 'users.website as _website, '
             + prefix + 'users.avatar as _picture, '
-            + prefix + 'users.title as _title, '
             + prefix + 'users.reputation as _reputation, '
-            //+ prefix + 'USER_PROFILE.USER_TOTAL_RATES as _profileviews, '
             + prefix + 'users.birthday as _birthday '
+            + prefix + 'users.hideemail '
+            + prefix + 'userfields.fid1 as _location '
+            + prefix + 'userfields.fid2 as _aboutme ' // not supported, need fork
+
 
             + 'FROM ' + prefix + 'users '
+            + 'LEFT JOIN  ' + prefix + 'userfields ON ' + prefix + 'userfields.ufid='+ prefix + 'users.uid '
             + 'WHERE ' + prefix + 'users.uid = ' + prefix + 'users.uid '
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
@@ -84,13 +88,19 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 
                     // from unix timestamp (s) to JS timestamp (ms)
                     row._joindate = ((row._joindate || 0) * 1000) || startms;
+                    row._lastposttime = ((row._lastposttime || 0) * 1000) || '';
 
                     // lower case the email for consistency
                     row._email = (row._email || '').toLowerCase();
+                    // mybb prop is hide email, so fix it by toggle
+                    row._showemail = (row.hideemail == 0);
 
                     // I don't know about you about I noticed a lot my users have incomplete urls, urls like: http://
                     row._picture = Exporter.validateUrl(row._picture);
                     row._website = Exporter.validateUrl(row._website);
+                    if(row._password.charAt(0) != '$') { // this user didn't change his password after we install dzhash, so the password can't be imported
+                        delete row._password;
+                    }
 
                     map[row._uid] = row;
                 });
@@ -165,6 +175,9 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'threads.views as _viewcount, '
             + prefix + 'threads.subject as _title, '
             + prefix + 'threads.dateline as _timestamp, '
+            + prefix + 'threads.status as mysupportstatus '  // not supported, need fork
+            + prefix + 'threads.statusuid as mysupportstatususer '  // not supported, need fork
+            + prefix + 'threads.bestanswer as _solvedPid '  // not supported, need fork
 
             // maybe use that to skip
             //+ prefix + 'threads.topic_approved as _approved, '
@@ -178,6 +191,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 
             // and there is the content I need !!
             + prefix + 'posts.message as _content '
+            
 
             + 'FROM ' + prefix + 'threads, ' + prefix + 'posts '
             // see
@@ -203,6 +217,12 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
                 rows.forEach(function(row) {
                     row._title = row._title ? row._title[0].toUpperCase() + row._title.substr(1) : 'Untitled';
                     row._timestamp = ((row._timestamp || 0) * 1000) || startms;
+                    if(row.mysupportstatususer) {
+                        row._isQuestion = 1;
+                        row._isSolved = row.mysupportstatus;
+                    }
+                    delete row.mysupportstatususer;
+                    delete row.mysupportstatus;
 
                     map[row._tid] = row;
                 });
@@ -225,7 +245,8 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 			});
 			callback(null, Exporter._topicsMainPids);
 		});
-	};
+    };
+    
     Exporter.getPosts = function(callback) {
         return Exporter.getPaginatedPosts(0, -1, callback);
     };
@@ -286,7 +307,93 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 					callback(null, map);
 				});
 			});
+    };
 
+    Exporter.getMessages = function(callback) {
+        return Exporter.getPaginatedMessages(0, -1, callback);
+    };
+    Exporter.getPaginatedMessages = function(start, limit, callback) {
+        callback = !_.isFunction(callback) ? noop : callback;
+
+        var err;
+        var prefix = Exporter.config('prefix');
+        var query =
+            'SELECT DISTINCT ' + prefix + 'privatemessages.pmid as _mid, '
+            + prefix + 'privatemessages.fromid as _fromuid, '
+            + prefix + 'privatemessages.toid as _touid, '
+            + prefix + 'privatemessages.dateline as _timestamp, '
+            // not being used
+            + prefix + 'privatemessages.subject as _subject, '
+            + prefix + 'privatemessages.message as _content, '
+
+            + 'FROM ' + prefix + 'privatemessages '
+            + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
+
+        if (!Exporter.connection) {
+            err = {error: 'MySQL connection is not setup. Run setup(config) first'};
+            Exporter.error(err.error);
+            return callback(err);
+        }
+
+        Exporter.connection.query(query, function(err, rows) {
+            if (err) {
+                Exporter.error(err);
+                return callback(err);
+            }
+
+            //normalize here
+            var map = {};
+            rows.forEach(function(row) {
+                // remove quote in content, to avoid duplicate.
+                row._content = row._content.replace(/\[quote=["]?([\s\S]*?)["]?\]([\s\S]*?)\[\/quote\]/gi, '');
+
+                map[row._mid] = row;
+            });
+
+            callback(null, map);
+        });
+    };
+
+    Exporter.getVotes = function(callback) {
+        return Exporter.getPaginatedVotes(0, -1, callback);
+    };
+    Exporter.getPaginatedVotes = function(start, limit, callback) {
+        callback = !_.isFunction(callback) ? noop : callback;
+
+        var err;
+        var prefix = Exporter.config('prefix');
+        var query =
+            'SELECT ' + prefix + 'reputation.rid as _vid, '
+            + prefix + 'reputation.adduid as _uid, '
+            + prefix + 'reputation.pid as _pid, '
+            + prefix + 'reputation.reputation as _action, '
+
+            + 'FROM ' + prefix + 'reputation '
+            + 'WHERE ' + prefix + 'reputation.reputation != 0 AND ' + prefix + 'reputation.pid != 0 ' 
+            + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
+
+        if (!Exporter.connection) {
+            err = {error: 'MySQL connection is not setup. Run setup(config) first'};
+            Exporter.error(err.error);
+            return callback(err);
+        }
+
+        Exporter.connection.query(query, function(err, rows) {
+            if (err) {
+                Exporter.error(err);
+                return callback(err);
+            }
+
+            //normalize here
+            var map = {};
+            rows.forEach(function(row) {
+                row._action = (row._action > 0 ? 1 : -1);
+
+                map[row._vid] = row;
+            });
+
+            callback(null, map);
+        });
     };
 
     Exporter.teardown = function(callback) {
