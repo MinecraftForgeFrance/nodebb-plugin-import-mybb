@@ -175,9 +175,13 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'threads.views as _viewcount, '
             + prefix + 'threads.subject as _title, '
             + prefix + 'threads.dateline as _timestamp, '
+            + prefix + 'threads.closed as _locked, '
+            + prefix + 'threads.prefix as _locked, '
             + prefix + 'threads.status as mysupportstatus '  // not supported, need fork
             + prefix + 'threads.statusuid as mysupportstatususer '  // not supported, need fork
             + prefix + 'threads.bestanswer as _solvedPid '  // not supported, need fork
+            + prefix + 'threads.bestanswer as _solvedPid '
+            + prefix + 'threadprefixes.displaystyle as tag '
 
             // maybe use that to skip
             //+ prefix + 'threads.topic_approved as _approved, '
@@ -196,6 +200,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + 'FROM ' + prefix + 'threads, ' + prefix + 'posts '
             // see
             + 'WHERE ' + prefix + 'threads.firstpost=' + prefix + 'posts.pid '
+            + 'LEFT JOIN  ' + prefix + 'threadprefixes ON ' + prefix + 'threadprefixes.pid='+ prefix + 'threads.prefix '
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
 
@@ -223,6 +228,9 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
                     }
                     delete row.mysupportstatususer;
                     delete row.mysupportstatus;
+                    if(row.tag) {
+                        row._tags = [row.tag];
+                    }
 
                     map[row._tid] = row;
                 });
