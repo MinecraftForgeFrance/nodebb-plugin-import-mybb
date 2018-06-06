@@ -48,15 +48,15 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'users.regdate as _joindate, '
             + prefix + 'users.lastpost as _lastposttime, '
             + prefix + 'users.lastvisit as _lastonline, ' 
-            + prefix + 'users.email as _email '
-            //+ prefix + 'banlist.ban_id as _banned '
+            + prefix + 'users.email as _email, '
+            //+ prefix + 'banlist.ban_id as _banned, '
             + prefix + 'users.signature as _signature, '
             + prefix + 'users.website as _website, '
             + prefix + 'users.avatar as _picture, '
             + prefix + 'users.reputation as _reputation, '
-            + prefix + 'users.birthday as _birthday '
-            + prefix + 'users.hideemail '
-            + prefix + 'userfields.fid1 as _location '
+            + prefix + 'users.birthday as _birthday, '
+            + prefix + 'users.hideemail, '
+            + prefix + 'userfields.fid1 as _location, '
             + prefix + 'userfields.fid2 as _aboutme ' // not supported, need fork
 
 
@@ -177,11 +177,11 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'threads.dateline as _timestamp, '
             + prefix + 'threads.closed as _locked, '
             + prefix + 'threads.prefix as _locked, '
-            + prefix + 'threads.status as mysupportstatus '  // not supported, need fork
-            + prefix + 'threads.statusuid as mysupportstatususer '  // not supported, need fork
-            + prefix + 'threads.bestanswer as _solvedPid '  // not supported, need fork
-            + prefix + 'threads.bestanswer as _solvedPid '
-            + prefix + 'threadprefixes.displaystyle as tag '
+            + prefix + 'threads.status as mysupportstatus, '  // not supported, need fork
+            + prefix + 'threads.statusuid as mysupportstatususer, '  // not supported, need fork
+            + prefix + 'threads.bestanswer as _solvedPid, '  // not supported, need fork
+            + prefix + 'threads.bestanswer as _solvedPid, '
+            + prefix + 'threadprefixes.displaystyle as tag, '
 
             // maybe use that to skip
             //+ prefix + 'threads.topic_approved as _approved, '
@@ -332,7 +332,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'privatemessages.dateline as _timestamp, '
             // not being used
             + prefix + 'privatemessages.subject as _subject, '
-            + prefix + 'privatemessages.message as _content, '
+            + prefix + 'privatemessages.message as _content '
 
             + 'FROM ' + prefix + 'privatemessages '
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
