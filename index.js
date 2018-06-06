@@ -333,7 +333,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 
             + 'FROM ' + prefix + 'privatemessages '
             + 'WHERE mybb_privatemessages.fromid!=0 '
-            + 'ORDER BY mybb_privatemessages.pmid'
+            + 'ORDER BY mybb_privatemessages.pmid '
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
         if (!Exporter.connection) {
