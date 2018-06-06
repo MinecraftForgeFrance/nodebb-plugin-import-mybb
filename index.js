@@ -197,7 +197,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + 'JOIN mybb_posts ON mybb_threads.firstpost=mybb_posts.pid '
             + 'LEFT JOIN mybb_threadprefixes ON mybb_threads.prefix=mybb_threadprefixes.pid '
             // see
-            + 'WHERE mybb_threads.visible != -2'
+            + 'WHERE mybb_threads.visible != -2 '
             
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
@@ -332,6 +332,8 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'privatemessages.message as _content '
 
             + 'FROM ' + prefix + 'privatemessages '
+            + 'WHERE mybb_privatemessages.fromid!=0 '
+            + 'ORDER BY mybb_privatemessages.pmid'
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
         if (!Exporter.connection) {
@@ -352,8 +354,9 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
                 // remove quote in content, to avoid duplicate.
                 row._content = row._content.replace(/\[quote=["]?([\s\S]*?)["]?\]([\s\S]*?)\[\/quote\]/gi, '');
                 row._touid = [row._touid];
-
-                map[row._mid] = row;
+                if(row._mid % 2 == 1) {
+                    map[row._mid] = row; // avoid duplicate as message are stored two time
+                }
             });
 
             callback(null, map);
