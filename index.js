@@ -40,7 +40,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
         var startms = +new Date();
         var query = 'SELECT '
             + prefix + 'users.uid as _uid, '
-            + prefix + 'users.password as _password'
+            + prefix + 'users.password as _password, '
             + prefix + 'users.username as _username, '
             + prefix + 'users.username as _alternativeUsername, '
             + prefix + 'users.email as _registrationEmail, '
@@ -176,11 +176,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'threads.subject as _title, '
             + prefix + 'threads.dateline as _timestamp, '
             + prefix + 'threads.closed as _locked, '
-            + prefix + 'threads.prefix as _locked, '
-            + prefix + 'threads.status as mysupportstatus, '  // not supported, need fork
-            + prefix + 'threads.statusuid as mysupportstatususer, '  // not supported, need fork
-            + prefix + 'threads.bestanswer as _solvedPid, '  // not supported, need fork
-            + prefix + 'threads.bestanswer as _solvedPid, '
+            + prefix + 'threads.visible as visible, '
             + prefix + 'threadprefixes.displaystyle as tag, '
 
             // maybe use that to skip
@@ -188,7 +184,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
 
             //+ prefix + 'threads.topic_status as _status, '
 
-            + prefix + 'posts.sticky as _pinned, '
+            + prefix + 'threads.sticky as _pinned, '
             + prefix + 'posts.uid as _uid, '
             // this should be == to the _tid on top of this query
             + prefix + 'posts.tid as _post_tid, '
@@ -197,10 +193,12 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             + prefix + 'posts.message as _content '
             
 
-            + 'FROM ' + prefix + 'threads, ' + prefix + 'posts '
+            + 'FROM ' + prefix + 'threads '
+            + 'JOIN mybb_posts ON mybb_threads.firstpost=mybb_posts.pid '
+            + 'LEFT JOIN mybb_threadprefixes ON mybb_threads.prefix=mybb_threadprefixes.pid '
             // see
-            + 'WHERE ' + prefix + 'threads.firstpost=' + prefix + 'posts.pid '
-            + 'LEFT JOIN  ' + prefix + 'threadprefixes ON ' + prefix + 'threadprefixes.pid='+ prefix + 'threads.prefix '
+            + 'WHERE mybb_threads.visible != -2'
+            
             + (start >= 0 && limit >= 0 ? 'LIMIT ' + start + ',' + limit : '');
 
 
@@ -222,15 +220,14 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
                 rows.forEach(function(row) {
                     row._title = row._title ? row._title[0].toUpperCase() + row._title.substr(1) : 'Untitled';
                     row._timestamp = ((row._timestamp || 0) * 1000) || startms;
-                    if(row.mysupportstatususer) {
-                        row._isQuestion = 1;
-                        row._isSolved = row.mysupportstatus;
-                    }
-                    delete row.mysupportstatususer;
-                    delete row.mysupportstatus;
+
                     if(row.tag) {
                         row._tags = [row.tag];
                     }
+                    if(row.visible == -1) {
+                        row._deleted = 1;
+                    }
+                    delete row.visible;
 
                     map[row._tid] = row;
                 });
@@ -326,7 +323,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
         var err;
         var prefix = Exporter.config('prefix');
         var query =
-            'SELECT DISTINCT ' + prefix + 'privatemessages.pmid as _mid, '
+            'SELECT ' + prefix + 'privatemessages.pmid as _mid, '
             + prefix + 'privatemessages.fromid as _fromuid, '
             + prefix + 'privatemessages.toid as _touid, '
             + prefix + 'privatemessages.dateline as _timestamp, '
@@ -354,6 +351,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             rows.forEach(function(row) {
                 // remove quote in content, to avoid duplicate.
                 row._content = row._content.replace(/\[quote=["]?([\s\S]*?)["]?\]([\s\S]*?)\[\/quote\]/gi, '');
+                row._touid = [row._touid];
 
                 map[row._mid] = row;
             });
@@ -374,7 +372,7 @@ var logPrefix = '[nodebb-plugin-import-mybb]';
             'SELECT ' + prefix + 'reputation.rid as _vid, '
             + prefix + 'reputation.adduid as _uid, '
             + prefix + 'reputation.pid as _pid, '
-            + prefix + 'reputation.reputation as _action, '
+            + prefix + 'reputation.reputation as _action '
 
             + 'FROM ' + prefix + 'reputation '
             + 'WHERE ' + prefix + 'reputation.reputation != 0 AND ' + prefix + 'reputation.pid != 0 ' 
